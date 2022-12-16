@@ -6,7 +6,7 @@
 
 /* The code implements the following i2c API
 1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the duty cycle of the corresponding PWM
-2. Read from any of the last 4 addresses (4, 5, 6, 7) to get the 16 bit ADC value of the corresponding ADC
+2. Read from any of the next 4 addresses (4, 5, 6, 7) to get the 16 bit ADC value of the corresponding ADC
 2. Read from address 8 to return the version of this code.
 
 Here are some examples of using i2cset and i2cget to interact with this program:

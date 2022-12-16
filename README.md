@@ -14,3 +14,27 @@ This repo is the source code, and provides instructions, for building the .elf f
  - `export PICO_SDK_PATH=../../../pico-sdk`
  - `cmake .. && make`
  - If a RP2040 is connected over SWD, you can upload with `openocd -f interface/raspberrypi-swd.cfg -f target/rp2040.cfg -c "program main.elf verify reset exit"`
+
+
+ ### Use
+
+Implements the following i2c API
+
+1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the duty cycle of the corresponding PWM
+2. Read from any of the next 4 addresses (4, 5, 6, 7) to get a 16 bit ADC value of the corresponding ADC
+2. Read from address 8 to return the version of this code.
+
+Here are some examples of using i2cset and i2cget to interact with this program:
+
+To set the duty cycle of the PWM channel corresponding to address 0 to 75%, you could use the following i2cset command:
+
+    i2cset -y 1 0x30 0 0xC0
+
+To read the 16-bit ADC value of the ADC channel corresponding to address 4, you could use the following i2cget command:
+
+    i2cget -y 1 0x30 w 4
+
+Note that the -y flag is used to automatically answer yes to any prompt from i2cset or i2cget.
+The 1 after the -y flag specifies the i2c bus number to use, and the 0x30 specifies the i2c address of the peripheral.
+The 0 and w in the i2cset and i2cget commands, respectively, specify the starting register address to be accessed.
+The 4 in the i2cget command specifies the address of the ADC channel to read.
