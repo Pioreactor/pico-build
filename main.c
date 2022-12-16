@@ -7,6 +7,7 @@
 /* The code implements the following i2c API
 1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the duty cycle of the corresponding PWM
 2. Read from any of the last 4 addresses (4, 5, 6, 7) to get the 16 bit ADC value of the corresponding ADC
+2. Read from address 8 to return the version of this code.
 
 Here are some examples of using i2cset and i2cget to interact with this program:
 
@@ -36,6 +37,10 @@ The 4 in the i2cget command specifies the address of the ADC channel to read.
 #define LED_CHANNEL_B_PIN 17 // TODO: fix me
 #define LED_CHANNEL_C_PIN 16
 #define LED_CHANNEL_D_PIN 17
+
+// define firmware version that can be read over i2c
+#define VERSION_MAJOR 0
+#define VERSION_MINOR 1
 
 // first 4 addresses are for the PWM channels for LEDS  (A, B, C, D)
 // second 4 addresses are for the ADCs (0, 1, 2, 3)
@@ -86,14 +91,26 @@ void i2c1_irq_handler() {
 
     // Check to see if the I2C controller is requesting data from the RAM
     if (status & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
-        if (pointer >= 4){
+        if (pointer >= 4 && pointer <= 7){
             uint8_t adc_input = pointer - 4;
             adc_select_input(adc_input);
-            uint16_t raw = adc_read();
+
+            // since the adc_read will return maximum 2**12, and I can
+            // send up to 2**16 data over two bytes in i2c, I can theoretically
+            // read up to 2**4 = 16 times here.
+            uint16_t raw = 0;
+            int i;
+            for (i = 0; i < 16; ++i){
+                raw = raw + adc_read();
+            }
             i2c1->hw->data_cmd = (raw & 0xFF); // Send the low-order byte
             i2c1->hw->data_cmd = (raw >> 8);   // Send the high-order byte
-        } else{
-            i2c1->hw->data_cmd = 0; // return 0 if not ADC
+        } else if (pointer == 8) {
+            i2c1->hw->data_cmd = VERSION_MINOR;
+            i2c1->hw->data_cmd = VERSION_MAJOR;
+        } else {
+            i2c1->hw->data_cmd = 0; // return 0
+            i2c1->hw->data_cmd = 0;
         }
 
         // Clear the interrupt
@@ -102,7 +119,7 @@ void i2c1_irq_handler() {
 }
 
 
-// Main loop - initilises system and then loops while interrupts get on with processing the data
+// Main loop - initializes system and then loops while interrupts get on with processing the data
 int main() {
 
     // setup ADC
@@ -110,7 +127,7 @@ int main() {
 
     // Initialise ADCs
     adc_init();
-    // Make sure GPIO is high-impedance, no pullups etc
+    // Make sure GPIO is high-impedance, no pull-ups etc
     adc_gpio_init(26);
     adc_gpio_init(27);
     adc_gpio_init(28);
