@@ -1,8 +1,8 @@
 name: CMake
 
 on:
-  push:
-  pull_request:
+  release:
+    types: [published]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -64,3 +64,19 @@ jobs:
       shell: bash
       run: |
         cmake --build . --config $BUILD_TYPE -j 2
+
+    - name: ⬆ Upload build result
+      uses: actions/upload-artifact@v3
+      with:
+        name: elf_file
+        path: main.elf
+
+    - name: ➕ Upload elf to GH release page
+      uses: svenstaro/upload-release-action@v2
+      if: github.event_name == 'release' && github.repository == 'Pioreactor/pico-build'
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: main.elf
+        tag: ${{ github.ref }}
+        overwrite: true
+        file_glob: true
