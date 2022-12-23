@@ -3,9 +3,11 @@
 #include "hardware/irq.h"
 #include "hardware/adc.h"
 #include "hardware/pwm.h"
+#include "hardware/clocks.h"
+
 
 /* The code implements the following i2c API
-1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the duty cycle of the corresponding PWM
+1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the 8-bit duty cycle of the corresponding PWM
 2. Read from any of the next 4 addresses (4, 5, 6, 7) to get the 16 bit ADC value of the corresponding ADC
 2. Read from address 8 to return the version of this code.
 
@@ -54,11 +56,14 @@ uint8_t pwm_duty_cycles[4];
 
 
 void set_up_pwm_pin(uint pin) { 
-    // starts at duty_cycle = 0, hz = 125M
+    // starts at duty_cycle = 0, hz = 325k
     gpio_set_function(pin, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(pin);
     pwm_config config = pwm_get_default_config();
-    pwm_init(slice_num, &config, true); 
+    float div = (float)clock_get_hz(clk_sys) / (325000 * 256);
+    pwm_config_set_clkdiv(&config, div);
+    pwm_config_set_wrap(&config, 256);
+    pwm_init(slice_num, &config, true);
     pwm_set_gpio_level(pin, 0);
 };
 
@@ -84,7 +89,7 @@ void i2c1_irq_handler() {
                 // If not 1st byte then store the data in the RAM
                 // and increment the address to point to next byte
                 pwm_duty_cycles[pointer] = (uint8_t)(value & I2C_IC_DATA_CMD_DAT_BITS);
-                pwm_set_gpio_level(pwm_channels[pointer], ((uint16_t) pwm_duty_cycles[pointer]) << 8);
+                pwm_set_gpio_level(pwm_channels[pointer], (uint8_t) pwm_duty_cycles[pointer]);
             }
         }
     }

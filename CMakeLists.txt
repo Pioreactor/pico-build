@@ -20,10 +20,12 @@ add_executable(main
         )
 
 # Pull in our pico_stdlib which pulls in commonly used features
-target_link_libraries(main pico_stdlib hardware_uart hardware_adc hardware_i2c hardware_irq hardware_pwm)
+target_link_libraries(main pico_stdlib hardware_uart hardware_adc hardware_i2c hardware_irq hardware_pwm hardware_clocks)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(main)
 
 # add url via pico_set_program_url
 #example_auto_set_url(main)
+
+pico_set_binary_type(main no_flash)
