@@ -31,18 +31,18 @@ The 4 in the i2cget command specifies the address of the ADC channel to read.
 #define I2C1_PERIPHERAL_ADDR 0x30
 
 // GPIO pins to use for I2C
-#define GPIO_SDA0 6
-#define GPIO_SCK0 7
+#define GPIO_SDA0 14
+#define GPIO_SCK0 15
 
 // GPIO pins to use for PWM -> LED channels
-#define LED_CHANNEL_A_PIN 15 // TODO: fix me
-#define LED_CHANNEL_B_PIN 17 // TODO: fix me
-#define LED_CHANNEL_C_PIN 16
-#define LED_CHANNEL_D_PIN 17
+#define LED_CHANNEL_A_PIN 16
+#define LED_CHANNEL_B_PIN 17
+#define LED_CHANNEL_C_PIN 18
+#define LED_CHANNEL_D_PIN 19
 
 // define firmware version that can be read over i2c
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 1
+#define VERSION_MINOR 2
 
 // first 4 addresses are for the PWM channels for LEDS  (A, B, C, D)
 // second 4 addresses are for the ADCs (0, 1, 2, 3)
