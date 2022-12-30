@@ -4,7 +4,7 @@
 This repo is the source code, and provides instructions, for building the .elf file that is loaded to the RP2040 chip (its RAM) on the Pioreactor HAT.
 
 
-### Building
+### Building on a Raspberry Pi
 
  - on a Raspberry Pi, follow the setup instructions in Chapter 1. Quick Pico Setup of [the datasheet](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf).
  - `mkdir ~/pico/pico-examples/pioreactor && cd ~/pico/pico-examples/pioreactor`
