@@ -9,32 +9,32 @@
 /* The code implements the following i2c API
 1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the 8-bit duty cycle of the corresponding PWM
 2. Read from any of the next 4 addresses (4, 5, 6, 7) to get the 16 bit ADC value of the corresponding ADC
-2. Read from address 8 to return the version of this code.
+3. Read from address 8 to return the version of this code.
 
 Here are some examples of using i2cset and i2cget to interact with this program:
 
-To set the duty cycle of the PWM channel corresponding to address 0 to 75%, you could use the following i2cset command:
+To set the duty cycle of the PWM channel corresponding to LED channel A to 75%, you could use the following i2cset command:
 
 > i2cset -y 1 0x30 0 0xC0
 
 To read the 16-bit ADC value of the ADC channel corresponding to address 4, you could use the following i2cget command:
 
-> i2cget -y 1 0x30 w 4
+> i2cget -y 1 0x30 4 w
 
-Note that the -y flag is used to automatically answer yes to any prompt from i2cset or i2cget. 
-The 1 after the -y flag specifies the i2c bus number to use, and the 0x30 specifies the i2c address of the peripheral. 
-The 0 and w in the i2cset and i2cget commands, respectively, specify the starting register address to be accessed. 
-The 4 in the i2cget command specifies the address of the ADC channel to read.
+To get the version information:
+
+> i2cget -y 1 0x30 8 w
+
 */
 
 // define I2C addresses to be used for this peripheral
 #define I2C1_PERIPHERAL_ADDR 0x30
 
-// GPIO pins to use for I2C
+// Pico GPIO pins to use for I2C
 #define GPIO_SDA0 14
 #define GPIO_SCK0 15
 
-// GPIO pins to use for PWM -> LED channels
+// Pico GPIO pins to use for PWM -> LED channels
 #define LED_CHANNEL_A_PIN 16
 #define LED_CHANNEL_B_PIN 17
 #define LED_CHANNEL_C_PIN 18
@@ -42,20 +42,20 @@ The 4 in the i2cget command specifies the address of the ADC channel to read.
 
 // define firmware version that can be read over i2c
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 2
+#define VERSION_MINOR 3
 
 // first 4 addresses are for the PWM channels for LEDS  (A, B, C, D)
 // second 4 addresses are for the ADCs (0, 1, 2, 3)
 uint8_t pointer = 0;
 
-// store the GPIO pins of the PWMs 
+// store the Pico GPIO pins of the PWMs
 uint8_t pwm_channels[4] = {LED_CHANNEL_A_PIN, LED_CHANNEL_B_PIN, LED_CHANNEL_C_PIN, LED_CHANNEL_D_PIN};
 
 // store the duty cycles of the PWMs
 uint8_t pwm_duty_cycles[4];
 
 
-void set_up_pwm_pin(uint pin) { 
+void set_up_pwm_pin(uint pin) {
     // starts at duty_cycle = 0, hz = 325k
     gpio_set_function(pin, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(pin);
@@ -69,8 +69,19 @@ void set_up_pwm_pin(uint pin) {
 
 void i2c1_irq_handler() {
 
+
     // Get interrupt status
     uint32_t status = i2c1->hw->intr_stat;
+
+    // Check for NACK signals from the master
+    if (status & I2C_IC_INTR_STAT_R_RX_DONE_BITS || status & I2C_IC_INTR_STAT_R_TX_ABRT_BITS) {
+        // Handle NACK signal (e.g., log the error, reset a state variable, etc.)
+        // ...
+
+        // Clear the NACK interrupt
+        i2c1->hw->clr_rx_done;
+        i2c1->hw->clr_tx_abrt;
+    }
 
     // Check to see if we have received data from the I2C controller
     if (status & I2C_IC_INTR_STAT_R_RX_FULL_BITS) {
@@ -83,18 +94,22 @@ void i2c1_irq_handler() {
 
             // If so treat it as the address to use
             pointer = (uint8_t)(value & I2C_IC_DATA_CMD_DAT_BITS);
+            // Validate the received I2C address
+            if (pointer > 8) {
+                // If the address is not within the valid range
+                pointer = 0xFF;
+            }
 
         } else {
             if (pointer <= 3){
                 // If not 1st byte then store the data in the RAM
-                // and increment the address to point to next byte
                 pwm_duty_cycles[pointer] = (uint8_t)(value & I2C_IC_DATA_CMD_DAT_BITS);
                 pwm_set_gpio_level(pwm_channels[pointer], (uint8_t) pwm_duty_cycles[pointer]);
             }
         }
     }
 
-    // Check to see if the I2C controller is requesting data from the RAM
+    // Check to see if the I2C controller is requesting data
     if (status & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
         if (pointer >= 4 && pointer <= 7){
             uint8_t adc_input = pointer - 4;
@@ -102,20 +117,29 @@ void i2c1_irq_handler() {
 
             // since the adc_read will return maximum 2**12, and I can
             // send up to 2**16 data over two bytes in i2c, I can theoretically
-            // read up to 2**4 = 16 times here.
-            uint16_t raw = 0;
-            int i;
-            for (i = 0; i < 16; ++i){
-                raw = raw + adc_read();
+            // read up to 2**4 = 16 times here, since 2**12 * 16 = two bytes
+
+            // we can treat this as a single sample from an 16bit ADC, and I can sample multiple times, and take the average.
+
+            const int n_samples = 16;
+            const int samples_to_fill_2bytes = 16;
+            uint32_t running_sum = 0;
+            for (int j = 0; j < n_samples; ++j){
+                for (int i = 0; i < samples_to_fill_2bytes; ++i){
+                    running_sum = running_sum + adc_read();
+                    sleep_us(5);
+                }
             }
-            i2c1->hw->data_cmd = (raw & 0xFF); // Send the low-order byte
-            i2c1->hw->data_cmd = (raw >> 8);   // Send the high-order byte
+            uint16_t average = (uint16_t)(running_sum / n_samples);
+
+            i2c1->hw->data_cmd = (average & 0xFF); // Send the low-order byte
+            i2c1->hw->data_cmd = (average >> 8);   // Send the high-order byte
         } else if (pointer == 8) {
             i2c1->hw->data_cmd = VERSION_MINOR;
             i2c1->hw->data_cmd = VERSION_MAJOR;
         } else {
-            i2c1->hw->data_cmd = 0; // return 0
-            i2c1->hw->data_cmd = 0;
+            i2c1->hw->data_cmd = 0xFF; // return 0xFF as an error code
+            i2c1->hw->data_cmd = 0xFF;
         }
 
         // Clear the interrupt
