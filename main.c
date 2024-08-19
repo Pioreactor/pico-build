@@ -5,12 +5,30 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 
+/* The code implements the following i2c API
+1. Write to any of the first 4 addresses (0, 1, 2, 3) to set the 8-bit duty cycle of the corresponding PWM
+2. Read from any of the next 4 addresses (4, 5, 6, 7) to get the 16 bit ADC value of the corresponding ADC
+2. Read from address 8 to return the version of this code.
+
+Here are some examples of using i2cset and i2cget to interact with this program:
+To set the duty cycle of the PWM channel corresponding to address 0 to 75%, you could use the following i2cset command:
+> i2cset -y 1 0x30 0 0xC0
+To read the 16-bit ADC value of the ADC channel corresponding to address 4, you could use the following i2cget command:
+> i2cget -y 1 0x30 w 4
+Note that the -y flag is used to automatically answer yes to any prompt from i2cset or i2cget.
+The 1 after the -y flag specifies the i2c bus number to use, and the 0x30 specifies the i2c address of the peripheral.
+The 0 and w in the i2cset and i2cget commands, respectively, specify the starting register address to be accessed.
+The 4 in the i2cget command specifies the address of the ADC channel to read.
+*/
+
+// define I2C addresses to be used for this peripheral
 
 #define I2C1_PERIPHERAL_ADDR 0x2C
 
 #define GPIO_SDA0 14
 #define GPIO_SCK0 15
 
+// GPIO pins to use for PWM -> LED channels
 #define LED_CHANNEL_A_PIN 16
 #define LED_CHANNEL_B_PIN 17
 #define LED_CHANNEL_C_PIN 18
@@ -19,8 +37,12 @@
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 3
 
+// first 4 addresses are for the PWM channels for LEDS  (A, B, C, D)
+// second 4 addresses are for the ADCs (0, 1, 2, 3)
 uint8_t pointer = 0;
+// store the GPIO pins of the PWMs
 uint8_t pwm_channels[4] = {LED_CHANNEL_A_PIN, LED_CHANNEL_B_PIN, LED_CHANNEL_C_PIN, LED_CHANNEL_D_PIN};
+// store the duty cycles of the PWMs
 uint8_t pwm_duty_cycles[4];
 
 const int randomArray[16] = {2, -1, 1, 0, -2, 2, -1, 0, 1, -2, 0, 2, -1, 1, 0, -2};
@@ -70,6 +92,9 @@ void i2c1_irq_handler() {
             uint8_t adc_input = pointer - 4;
             adc_select_input(adc_input);
 
+            // since the adc_read will return maximum 2**12, and I can
+            // send up to 2**16 data over two bytes in i2c, I can theoretically
+            // read up to 2**4 = 16 times here.
             uint32_t running_sum = 0;
             for (int j = 0; j < 16; ++j) {
                 for (int i = 0; i < 16; ++i) {
@@ -108,6 +133,7 @@ int main() {
     adc_gpio_init(28);
     adc_gpio_init(29);
 
+    // Select ADC input 0 initially (GPIO26)
     adc_select_input(0);
 
     i2c_init(i2c1, 100000);
@@ -123,9 +149,11 @@ int main() {
     set_up_pwm_pin(LED_CHANNEL_C_PIN);
     set_up_pwm_pin(LED_CHANNEL_D_PIN);
 
+    // Enable the I2C interrupts we want to process
     i2c1->hw->intr_mask = (I2C_IC_INTR_MASK_M_RD_REQ_BITS | I2C_IC_INTR_MASK_M_RX_FULL_BITS);
-
+    // Set up the interrupt handler to service I2C interrupts
     irq_set_exclusive_handler(I2C1_IRQ, i2c1_irq_handler);
+    // Enable I2C interrupt
     irq_set_enabled(I2C1_IRQ, true);
 
     while (true) {
