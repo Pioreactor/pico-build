@@ -28,13 +28,13 @@ Here are some examples of using i2cset and i2cget to interact with this program:
 
 To set the duty cycle of the PWM channel corresponding to address 0 to 75%, you could use the following i2cset command:
 
-    i2cset -y 1 0x30 0 0xC0
+    i2cset -y 1 0x2C 0 0xC0
 
 To read the 16-bit ADC value of the ADC channel corresponding to address 4, you could use the following i2cget command:
 
-    i2cget -y 1 0x30 w 4
+    i2cget -y 1 0x2C w 4
 
 Note that the -y flag is used to automatically answer yes to any prompt from i2cset or i2cget.
-The 1 after the -y flag specifies the i2c bus number to use, and the 0x30 specifies the i2c address of the peripheral.
+The 1 after the -y flag specifies the i2c bus number to use, and the 0x2C specifies the i2c address of the peripheral.
 The 0 and w in the i2cset and i2cget commands, respectively, specify the starting register address to be accessed.
 The 4 in the i2cget command specifies the address of the ADC channel to read.

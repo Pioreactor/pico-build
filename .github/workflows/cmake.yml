@@ -26,13 +26,13 @@ jobs:
       PICO_SDK_PATH: $GITHUB_WORKSPACE/pico-sdk
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
     # Check out the Pico SDK
     - name: Checkout Pico SDK
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-sdk
         path: pico-sdk
@@ -40,7 +40,7 @@ jobs:
 
     # Check out the Pico Extras
     - name: Checkout Pico Extras
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: raspberrypi/pico-extras
         path: pico-extras
@@ -67,9 +67,9 @@ jobs:
         cmake --build . --config $BUILD_TYPE -j 2
 
     - name: Upload build result
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: elf_file
+        name: main.elf
         path: ${{runner.workspace}}/build/main.elf
 
     - name: Upload elf to GH release page
