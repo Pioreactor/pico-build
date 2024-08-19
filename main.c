@@ -37,68 +37,67 @@ void set_up_pwm_pin(uint pin) {
     pwm_set_gpio_level(pin, 0);
 };
 
-void reset_i2c_bus() {
-    i2c_deinit(i2c1);
-    i2c_init(i2c1, 100000);
-    i2c_set_slave_mode(i2c1, true, I2C1_PERIPHERAL_ADDR);
-}
 
 void i2c1_irq_handler() {
+    // Get interrupt status
     uint32_t status = i2c1->hw->intr_stat;
 
-    if (status & I2C_IC_INTR_STAT_R_RX_DONE_BITS || status & I2C_IC_INTR_STAT_R_TX_ABRT_BITS) {
-        pointer = 0xFF;  // Reset pointer on NACK or TX abort
-        i2c1->hw->clr_rx_done;
+    // Check for NACK signals from the master or TX abort
+    if (status & I2C_IC_INTR_STAT_R_TX_ABRT_BITS) {
+        // Clear the TX abort interrupt
         i2c1->hw->clr_tx_abrt;
     }
 
+    // Check to see if we have received data from the I2C controller
     if (status & I2C_IC_INTR_STAT_R_RX_FULL_BITS) {
         uint32_t value = i2c1->hw->data_cmd;
-
         if (value & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS) {
             pointer = (uint8_t)(value & I2C_IC_DATA_CMD_DAT_BITS);
             if (pointer > 8) {
-                pointer = 0xFF;  // Ignore unexpected addresses
+                pointer = 0xFF;  // invalid address
             }
         } else {
-            if (pointer <= 3){
+            if (pointer <= 3) {
                 pwm_duty_cycles[pointer] = (uint8_t)(value & I2C_IC_DATA_CMD_DAT_BITS);
-                pwm_set_gpio_level(pwm_channels[pointer], pwm_duty_cycles[pointer]);
+                pwm_set_gpio_level(pwm_channels[pointer], (uint8_t) pwm_duty_cycles[pointer]);
             }
         }
     }
 
+    // Check to see if the I2C controller is requesting data
     if (status & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
-        if (pointer >= 4 && pointer <= 7){
+        if (pointer >= 4 && pointer <= 7) {
             uint8_t adc_input = pointer - 4;
             adc_select_input(adc_input);
 
-            const int n_samples = 16;
-            const int samples_to_fill_2bytes = 16;
             uint32_t running_sum = 0;
-            for (int j = 0; j < n_samples; ++j){
-                for (int i = 0; i < samples_to_fill_2bytes; ++i){
-                    running_sum = running_sum + adc_read();
+            for (int j = 0; j < 16; ++j) {
+                for (int i = 0; i < 16; ++i) {
+                    running_sum += adc_read();
                     sleep_us(5 + randomArray[j]);
                 }
             }
-            uint16_t average = (uint16_t)(running_sum / n_samples);
-
-            i2c1->hw->data_cmd = (average & 0xFF); // Send the low-order byte
-            i2c1->hw->data_cmd = (average >> 8);   // Send the high-order byte
+            uint16_t average = (uint16_t)(running_sum / 16);
+            i2c1->hw->data_cmd = (average & 0xFF);
+            i2c1->hw->data_cmd = (average >> 8);
         } else if (pointer == 8) {
             i2c1->hw->data_cmd = VERSION_MINOR;
             i2c1->hw->data_cmd = VERSION_MAJOR;
         } else {
-            i2c1->hw->data_cmd = 0xFF; // return 0xFF as an error code
+            i2c1->hw->data_cmd = 0xFF;
             i2c1->hw->data_cmd = 0xFF;
         }
 
+        // Clear the read request interrupt
         i2c1->hw->clr_rd_req;
     }
 
-    i2c1->hw->clr_intr;  // Clear all interrupts
+    // Clear any other interrupts that might have been set
+    if (status & I2C_IC_INTR_STAT_R_RX_DONE_BITS) {
+        i2c1->hw->clr_rx_done;
+    }
 }
+
 
 int main() {
     stdio_init_all();

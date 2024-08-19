@@ -67,9 +67,9 @@ jobs:
         cmake --build . --config $BUILD_TYPE -j 2
 
     - name: Upload build result
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: main.elf.zip
+        name: main.elf
         path: ${{runner.workspace}}/build/main.elf
 
     - name: Upload elf to GH release page
