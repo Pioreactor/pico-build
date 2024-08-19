@@ -6,7 +6,7 @@
 #include "hardware/clocks.h"
 
 
-#define I2C1_PERIPHERAL_ADDR 0x30
+#define I2C1_PERIPHERAL_ADDR 0x29
 
 #define GPIO_SDA0 14
 #define GPIO_SCK0 15
