@@ -21,7 +21,7 @@
 
 // Code version numbers
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 3
+#define VERSION_MINOR 4
 
 // Global pointer for I2C register selection (addresses 0–8)
 volatile uint8_t pointer = 0;
