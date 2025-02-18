@@ -59,8 +59,8 @@ uint16_t read_adc_oversampled(uint8_t adc_channel) {
     uint32_t sum = 0;
     for (int i = 0; i < num_samples; i++) {
         sum += adc_read();
-        // Continue to add a random delay between 1 and 5 µs to help with dithering.
-        sleep_us(1 + (rand() % 5));
+        // Continue to add a random delay between 1 and 3 µs to help with dithering.
+        sleep_us(1 + (rand() % 3));
     }
     // Shift right by 5 bits to account for the increased number of samples.
     return (uint16_t)(sum >> 5);
@@ -164,14 +164,21 @@ int main() {
     irq_set_exclusive_handler(I2C1_IRQ, i2c1_irq_handler);
     irq_set_enabled(I2C1_IRQ, true);
 
-    // Background loop: continuously update the cached ADC values.
+    // Variables for scheduling updates
+    uint32_t loop_counter = 0;
     while (true) {
-        for (uint8_t channel = 0; channel < 4; channel++) {
-            adc_cache[channel] = read_adc_oversampled(channel);
+        // High-priority channels (0 and 1) are updated every loop with high accuracy.
+        adc_cache[0] = read_adc_oversampled(0);
+        adc_cache[1] = read_adc_oversampled(1);
+
+        // Low-priority channels (2 and 3) are updated only once every N loops.
+        if (loop_counter % 10 == 0) {
+            adc_cache[2] = read_adc_oversampled(2);
+            adc_cache[3] = read_adc_oversampled(3);
         }
+        loop_counter++;
         // A short delay to yield; adjust as needed.
         sleep_ms(1);
     }
-
     return 0;
 }
