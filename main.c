@@ -35,9 +35,6 @@ uint8_t pwm_duty_cycles[4] = {0};
 // These values are updated continuously in the background.
 volatile uint16_t adc_cache[4] = {0};
 
-// Number of ADC samples used for oversampling.
-#define NUM_ADC_SAMPLES 256
-
 // -----------------------------------------------------------------------------
 // Function: set_up_pwm_pin
 // Configures a given GPIO for PWM output.
@@ -54,23 +51,19 @@ static inline void set_up_pwm_pin(uint pin) {
     pwm_set_gpio_level(pin, 0);
 }
 
-// -----------------------------------------------------------------------------
-// Function: read_adc_oversampled
-// Reads from the ADC channel NUM_ADC_SAMPLES times with a small random delay
-// between samples (to decorrelate noise), sums the results, and then shifts
-// right by 4 bits. This is an oversampling technique that gains 4 extra bits
-// of effective resolution (i.e. 12-bit to 16-bit).
-// -----------------------------------------------------------------------------
+
+// Increase oversampling factor to 1024 samples for an extra bit of resolution.
 uint16_t read_adc_oversampled(uint8_t adc_channel) {
     adc_select_input(adc_channel);
+    const int num_samples = 1024;  // 4^5 samples to gain 5 extra bits
     uint32_t sum = 0;
-    for (int i = 0; i < NUM_ADC_SAMPLES; i++) {
+    for (int i = 0; i < num_samples; i++) {
         sum += adc_read();
-        // Introduce a random delay between 5 and 9 µs.
-        sleep_us(5 + (rand() % 5));
+        // Continue to add a random delay between 1 and 5 µs to help with dithering.
+        sleep_us(1 + (rand() % 5));
     }
-    // Shifting right by 4 bits (dividing by 16) leverages the oversampling process.
-    return (uint16_t)(sum >> 4);
+    // Shift right by 5 bits to account for the increased number of samples.
+    return (uint16_t)(sum >> 5);
 }
 
 // -----------------------------------------------------------------------------
