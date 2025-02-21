@@ -35,7 +35,7 @@ uint8_t pwm_duty_cycles[4] = {0};
 // These values are updated continuously in the background.
 volatile uint16_t adc_cache[4] = {0};
 volatile uint32_t filtered_adc[4] = {0, 0, 0, 0};
-#define ALPHA 0.1f
+#define ALPHA 0.25f
 
 // -----------------------------------------------------------------------------
 // Function: set_up_pwm_pin
@@ -54,17 +54,16 @@ static inline void set_up_pwm_pin(uint pin) {
 }
 
 
-// Increase oversampling factor to 1024 samples for an extra bit of resolution.
-uint16_t read_adc_oversampled(uint8_t adc_channel) {
+uint32_t read_adc_oversampled(uint8_t adc_channel) {
     adc_select_input(adc_channel);
-    const int num_samples = 1024;  // 4^5 samples to gain 5 extra bits
+    const int num_samples = 1024;
     uint32_t sum = 0;
     for (int i = 0; i < num_samples; i++) {
         sum += adc_read();
         sleep_us(1 + (rand() % 3));
     }
-    // Shift right by 5 bits to account for the increased number of samples.
-    return (uint16_t)(sum >> 5);
+    // Shift down by 5 bits but keep it in 32-bit
+    return (sum >> 5);
 }
 
 // -----------------------------------------------------------------------------
@@ -170,7 +169,7 @@ int main() {
     while (true) {
 
         for (uint8_t channel = 2; channel < 4; channel++) {
-            uint16_t new_sample = read_adc_oversampled(channel);
+            uint32_t new_sample = read_adc_oversampled(channel);
             // Update the filtered value with a heavy low-pass filter:
             filtered_adc[channel] = (uint32_t)((1.0f - ALPHA) * filtered_adc[channel] + ALPHA * new_sample);
             // Use the filtered value as the cached result for I2C reads.
