@@ -21,7 +21,7 @@
 
 // Code version numbers
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 4
+#define VERSION_MINOR 5
 
 // Global pointer for I2C register selection (addresses 0–8)
 volatile uint8_t pointer = 0;
@@ -34,6 +34,8 @@ uint8_t pwm_duty_cycles[4] = {0};
 // Cached ADC values for channels 0–3 (corresponding to I2C addresses 4–7)
 // These values are updated continuously in the background.
 volatile uint16_t adc_cache[4] = {0};
+volatile uint32_t filtered_adc[4] = {0, 0, 0, 0};
+#define ALPHA 0.02f
 
 // -----------------------------------------------------------------------------
 // Function: set_up_pwm_pin
@@ -167,15 +169,23 @@ int main() {
     // Variables for scheduling updates
     uint32_t loop_counter = 0;
     while (true) {
-        // High-priority channels (0 and 1) are updated every loop with high accuracy.
-        adc_cache[0] = read_adc_oversampled(0);
-        adc_cache[1] = read_adc_oversampled(1);
+
+        for (uint8_t channel = 0; channel < 2; channel++) {
+            uint16_t new_sample = read_adc_oversampled(channel);
+            // Update the filtered value with a heavy low-pass filter:
+            filtered_adc[channel] = (uint32_t)((1.0f - ALPHA) * filtered_adc[channel] + ALPHA * new_sample);
+            // Use the filtered value as the cached result for I2C reads.
+            adc_cache[channel] = (uint16_t)filtered_adc[channel];
+        }
 
         // Low-priority channels (2 and 3) are updated only once every N loops.
-        if (loop_counter % 10 == 0) {
+        if (loop_counter % 100 == 0) {
+
             adc_cache[2] = read_adc_oversampled(2);
             adc_cache[3] = read_adc_oversampled(3);
+
         }
+
         loop_counter++;
         // A short delay to yield; adjust as needed.
         sleep_ms(1);
