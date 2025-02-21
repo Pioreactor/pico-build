@@ -35,7 +35,7 @@ uint8_t pwm_duty_cycles[4] = {0};
 // These values are updated continuously in the background.
 volatile uint16_t adc_cache[4] = {0};
 volatile uint32_t filtered_adc[4] = {0, 0, 0, 0};
-#define ALPHA 0.02f
+#define ALPHA 0.1f
 
 // -----------------------------------------------------------------------------
 // Function: set_up_pwm_pin
@@ -61,7 +61,6 @@ uint16_t read_adc_oversampled(uint8_t adc_channel) {
     uint32_t sum = 0;
     for (int i = 0; i < num_samples; i++) {
         sum += adc_read();
-        // Continue to add a random delay between 1 and 3 µs to help with dithering.
         sleep_us(1 + (rand() % 3));
     }
     // Shift right by 5 bits to account for the increased number of samples.
@@ -170,7 +169,7 @@ int main() {
     uint32_t loop_counter = 0;
     while (true) {
 
-        for (uint8_t channel = 0; channel < 2; channel++) {
+        for (uint8_t channel = 2; channel < 4; channel++) {
             uint16_t new_sample = read_adc_oversampled(channel);
             // Update the filtered value with a heavy low-pass filter:
             filtered_adc[channel] = (uint32_t)((1.0f - ALPHA) * filtered_adc[channel] + ALPHA * new_sample);
@@ -178,11 +177,11 @@ int main() {
             adc_cache[channel] = (uint16_t)filtered_adc[channel];
         }
 
-        // Low-priority channels (2 and 3) are updated only once every N loops.
+        // Low-priority channels (0 and 1) are updated only once every N loops.
         if (loop_counter % 100 == 0) {
 
-            adc_cache[2] = read_adc_oversampled(2);
-            adc_cache[3] = read_adc_oversampled(3);
+            adc_cache[0] = read_adc_oversampled(0);
+            adc_cache[1] = read_adc_oversampled(1);
 
         }
 
