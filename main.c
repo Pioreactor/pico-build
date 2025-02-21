@@ -21,7 +21,7 @@
 
 // Code version numbers
 #define VERSION_MAJOR 0
-#define VERSION_MINOR 4
+#define VERSION_MINOR 5
 
 // Global pointer for I2C register selection (addresses 0–8)
 volatile uint8_t pointer = 0;
@@ -34,6 +34,8 @@ uint8_t pwm_duty_cycles[4] = {0};
 // Cached ADC values for channels 0–3 (corresponding to I2C addresses 4–7)
 // These values are updated continuously in the background.
 volatile uint16_t adc_cache[4] = {0};
+volatile uint32_t filtered_adc[4] = {0, 0, 0, 0};
+#define ALPHA 0.25f
 
 // -----------------------------------------------------------------------------
 // Function: set_up_pwm_pin
@@ -52,18 +54,16 @@ static inline void set_up_pwm_pin(uint pin) {
 }
 
 
-// Increase oversampling factor to 1024 samples for an extra bit of resolution.
-uint16_t read_adc_oversampled(uint8_t adc_channel) {
+uint32_t read_adc_oversampled(uint8_t adc_channel) {
     adc_select_input(adc_channel);
-    const int num_samples = 1024;  // 4^5 samples to gain 5 extra bits
+    const int num_samples = 1024;
     uint32_t sum = 0;
     for (int i = 0; i < num_samples; i++) {
         sum += adc_read();
-        // Continue to add a random delay between 1 and 5 µs to help with dithering.
-        sleep_us(1 + (rand() % 5));
+        sleep_us(1 + (rand() % 3));
     }
-    // Shift right by 5 bits to account for the increased number of samples.
-    return (uint16_t)(sum >> 5);
+    // Shift down by 5 bits but keep it in 32-bit
+    return (sum >> 5);
 }
 
 // -----------------------------------------------------------------------------
@@ -164,14 +164,29 @@ int main() {
     irq_set_exclusive_handler(I2C1_IRQ, i2c1_irq_handler);
     irq_set_enabled(I2C1_IRQ, true);
 
-    // Background loop: continuously update the cached ADC values.
+    // Variables for scheduling updates
+    uint32_t loop_counter = 0;
     while (true) {
-        for (uint8_t channel = 0; channel < 4; channel++) {
-            adc_cache[channel] = read_adc_oversampled(channel);
+
+        for (uint8_t channel = 2; channel < 4; channel++) {
+            uint32_t new_sample = read_adc_oversampled(channel);
+            // Update the filtered value with a heavy low-pass filter:
+            filtered_adc[channel] = (uint32_t)((1.0f - ALPHA) * filtered_adc[channel] + ALPHA * new_sample);
+            // Use the filtered value as the cached result for I2C reads.
+            adc_cache[channel] = (uint16_t)filtered_adc[channel];
         }
+
+        // Low-priority channels (0 and 1) are updated only once every N loops.
+        if (loop_counter % 100 == 0) {
+
+            adc_cache[0] = read_adc_oversampled(0);
+            adc_cache[1] = read_adc_oversampled(1);
+
+        }
+
+        loop_counter++;
         // A short delay to yield; adjust as needed.
         sleep_ms(1);
     }
-
     return 0;
 }
