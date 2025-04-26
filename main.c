@@ -58,36 +58,48 @@ static void pwm_init_8bit(uint pin) {
 // Apply H-bridge state + duty to pins
 // ───────────────────────────────────────────────────────────
 static void apply_hbridge_state() {
+    uint slice1 = pwm_gpio_to_slice_num(HBRIDGE_IN1_PIN);
+    uint slice2 = pwm_gpio_to_slice_num(HBRIDGE_IN2_PIN);
+
     switch (state_reg) {
-        case 0: // Coast
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN1_PIN), false);
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN2_PIN), false);
+        case 0:     // Coast  (unchanged)
+            pwm_set_enabled(slice1, false);
+            pwm_set_enabled(slice2, false);
             gpio_put(HBRIDGE_IN1_PIN, 0);
             gpio_put(HBRIDGE_IN2_PIN, 0);
             break;
 
-        case 1: // Forward
-            pwm_set_gpio_level(HBRIDGE_IN1_PIN, duty_reg);
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN1_PIN), true);
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN2_PIN), false);
-            gpio_put(HBRIDGE_IN2_PIN, 0);
+        case 1:     // Forward, drive<->brake on IN2
+            // IN1 held high
+            pwm_set_enabled(slice1, false);
+            gpio_put(HBRIDGE_IN1_PIN, 1);
+
+            // IN2 PWM, duty = (255-duty_reg)  so 255→full drive, 0→full brake
+            pwm_set_wrap(slice2, 255);
+            pwm_set_gpio_level(HBRIDGE_IN2_PIN, 255 - duty_reg);
+            pwm_set_enabled(slice2, true);
             break;
 
-        case 2: // Reverse
-            pwm_set_gpio_level(HBRIDGE_IN2_PIN, duty_reg);
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN2_PIN), true);
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN1_PIN), false);
-            gpio_put(HBRIDGE_IN1_PIN, 0);
+        case 2:     // Reverse, drive<->brake on IN1
+            // IN2 held high
+            pwm_set_enabled(slice2, false);
+            gpio_put(HBRIDGE_IN2_PIN, 1);
+
+            // IN1 PWM, inverted duty
+            pwm_set_wrap(slice1, 255);
+            pwm_set_gpio_level(HBRIDGE_IN1_PIN, 255 - duty_reg);
+            pwm_set_enabled(slice1, true);
             break;
 
-        case 3: // Brake
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN1_PIN), false);
-            pwm_set_enabled(pwm_gpio_to_slice_num(HBRIDGE_IN2_PIN), false);
+        case 3:     // Brake (both high, no PWM)  (unchanged)
+            pwm_set_enabled(slice1, false);
+            pwm_set_enabled(slice2, false);
             gpio_put(HBRIDGE_IN1_PIN, 1);
             gpio_put(HBRIDGE_IN2_PIN, 1);
             break;
     }
 }
+
 
 // ───────────────────────────────────────────────────────────
 // I2C IRQ handler (slave mode)
