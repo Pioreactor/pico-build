@@ -35,9 +35,9 @@
 #define FW_VERSION_MINOR  1
 
 // Registers
-volatile uint8_t i2c_pointer = 0;
-volatile uint8_t duty_reg    = 0;  // 0-255
-volatile uint8_t state_reg   = 0;  // 0-3
+volatile uint8_t current_reg = 0xFF;      // 0xFF = “pointer not set yet”
+volatile uint8_t duty_reg    = 0;
+volatile uint8_t state_reg   = 0;
 
 // ───────────────────────────────────────────────────────────
 // Helper: configure one pin for PWM (wrap = 255 for 8-bit duty)
@@ -106,39 +106,43 @@ static void apply_hbridge_state() {
 // ───────────────────────────────────────────────────────────
 void i2c1_irq_handler() {
     uint32_t status = i2c1->hw->intr_stat;
-
     if (status & I2C_IC_INTR_STAT_R_TX_ABRT_BITS)
         i2c1->hw->clr_tx_abrt;
 
-    // Master write
+    /* ─── Master WRITE ───────────────────────────────*/
     if (status & I2C_IC_INTR_STAT_R_RX_FULL_BITS) {
-        uint8_t value = (uint8_t)i2c1->hw->data_cmd;
-        if (value & I2C_IC_DATA_CMD_FIRST_DATA_BYTE_BITS) {
-            i2c_pointer = value & 0xFF;
-        } else {
-            if (i2c_pointer == 0) {
-                duty_reg = value;
-            } else if (i2c_pointer == 1) {
-                state_reg = value & 0x03;     // only 0-3 are valid
+        uint8_t val = (uint8_t)i2c1->hw->data_cmd;
+
+        if (current_reg == 0xFF) {          // first byte → register pointer
+            current_reg = val;
+        } else {                            // subsequent bytes → data
+            if (current_reg == 0) {
+                duty_reg  = val;
+            } else if (current_reg == 1) {
+                state_reg = val & 0x03;
             }
             apply_hbridge_state();
         }
     }
 
-    // Master read
+    /* ─── Master READ ────────────────────────────────*/
     if (status & I2C_IC_INTR_STAT_R_RD_REQ_BITS) {
-        switch (i2c_pointer) {
-            case 0:  i2c1->hw->data_cmd = duty_reg;          break;
-            case 1:  i2c1->hw->data_cmd = state_reg;         break;
-            case 2:  i2c1->hw->data_cmd = FW_VERSION_MINOR;
-                     i2c1->hw->data_cmd = FW_VERSION_MAJOR;  break;
-            default: i2c1->hw->data_cmd = 0xFF;              break;
+        switch (current_reg) {
+            case 0: i2c1->hw->data_cmd = duty_reg;  break;
+            case 1: i2c1->hw->data_cmd = state_reg; break;
+            case 2: i2c1->hw->data_cmd = FW_VERSION_MINOR;   // LSB first
+                    i2c1->hw->data_cmd = FW_VERSION_MAJOR;   // then MSB
+                    break;
+            default:i2c1->hw->data_cmd = 0xFF;       break;
         }
         i2c1->hw->clr_rd_req;
     }
 
-    if (status & I2C_IC_INTR_STAT_R_RX_DONE_BITS)
+    /* ─── Transaction finished → forget pointer ─────*/
+    if (status & I2C_IC_INTR_STAT_R_RX_DONE_BITS) {
         i2c1->hw->clr_rx_done;
+        current_reg = 0xFF;                 // ready for next command
+    }
 }
 
 // ───────────────────────────────────────────────────────────
