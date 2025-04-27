@@ -111,12 +111,11 @@ void i2c1_irq_handler(void)
         else if (reg_ptr == 0x11)        out = FW_VERSION_MAJOR;
         i2c1->hw->data_cmd = out;
         (void)i2c1->hw->clr_rd_req;
-        reg_ptr++;
     }
 
-    /* end of message */
-    if (s & I2C_IC_INTR_STAT_R_RX_DONE_BITS) {
-        (void)i2c1->hw->clr_rx_done;
+    /* STOP detected → next byte will be a new pointer */
+    if (s & I2C_IC_INTR_STAT_R_STOP_DET_BITS) {
+        (void)i2c1->hw->clr_stop_det;
         expect_ptr = true;
     }
 }
@@ -141,7 +140,7 @@ int main(void)
     i2c1->hw->intr_mask =
         I2C_IC_INTR_MASK_M_RX_FULL_BITS |
         I2C_IC_INTR_MASK_M_RD_REQ_BITS  |
-        I2C_IC_INTR_MASK_M_RX_DONE_BITS;
+        I2C_IC_INTR_MASK_M_STOP_DET_BITS;
 
     irq_set_exclusive_handler(I2C1_IRQ, i2c1_irq_handler);
     irq_set_enabled(I2C1_IRQ, true);
