@@ -67,7 +67,8 @@ static inline void apply_drive(uint idx, uint8_t v)
     }
 
     bool rev   = v & 0x80;
-    uint duty  = v & 0x7F;                    // 1-127
+    uint8_t duty   = (v & 0x7F) << 1;                     // scale to 0-254
+    if (duty > 255) duty = 255;
     uint brake = 255 - duty;                  // drive/brake method
 
     if (rev) {
