@@ -21,10 +21,10 @@ typedef struct {
 } hbridge_chan_t;
 
 static const hbridge_chan_t chans[4] = {
-    {2, 3},     // CH-0  slice 1
-    {4, 5},     // CH-1  slice 2
-    {6, 7},     // CH-2  slice 3
-    {20, 21},   // CH-3  slice 5
+    {18, 19},   // CH-0 -> H_BRIDGE1_IN1_R / H_BRIDGE1_IN2_R
+    {16, 17},   // CH-1 -> H_BRIDGE2_IN1_R / H_BRIDGE2_IN2_R
+    {22, 23},   // CH-2 -> H_BRIDGE3_IN1_R / H_BRIDGE3_IN2_R
+    {20, 21},   // CH-3 -> H_BRIDGE4_IN1_R / H_BRIDGE4_IN2_R
 };
 
 /* ─── globals ─────────────────────────────────────────────────────────────── */
@@ -67,9 +67,8 @@ static inline void apply_drive(uint idx, uint8_t v)
     }
 
     bool rev   = v & 0x80;
-    uint8_t duty   = (v & 0x7F) << 1;                     // scale to 0-254
-    if (duty > 255) duty = 255;
-    uint brake = 255 - duty;                  // drive/brake method
+    uint8_t duty   = (v & 0x7F) << 1;    // scale to 0-254
+    uint brake = 255 - duty;             // drive/brake method
 
     if (rev) {
         // IN2 (pwm_pin) held high, IN1 (high_pin) gets PWM
