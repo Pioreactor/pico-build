@@ -21,10 +21,10 @@ typedef struct {
 } hbridge_chan_t;
 
 static const hbridge_chan_t chans[4] = {
-    {18, 19},   // CH-0 -> H_BRIDGE1_IN1_R / H_BRIDGE1_IN2_R
-    {16, 17},   // CH-1 -> H_BRIDGE2_IN1_R / H_BRIDGE2_IN2_R
-    {22, 23},   // CH-2 -> H_BRIDGE3_IN1_R / H_BRIDGE3_IN2_R
-    {20, 21},   // CH-3 -> H_BRIDGE4_IN1_R / H_BRIDGE4_IN2_R
+    {22, 23},   // CH-0 -> physical 0 -> H_BRIDGE3_IN1_R / H_BRIDGE3_IN2_R
+    {20, 21},   // CH-1 -> physical 1 -> H_BRIDGE4_IN1_R / H_BRIDGE4_IN2_R
+    {18, 19},   // CH-2 -> physical 2 -> H_BRIDGE1_IN1_R / H_BRIDGE1_IN2_R
+    {16, 17},   // CH-3 -> physical 3 -> H_BRIDGE2_IN1_R / H_BRIDGE2_IN2_R
 };
 
 /* ─── globals ─────────────────────────────────────────────────────────────── */
