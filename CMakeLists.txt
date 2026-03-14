@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
 
+if (NOT DEFINED PICO_SDK_FETCH_FROM_GIT_TAG)
+    set(PICO_SDK_FETCH_FROM_GIT_TAG 2.2.0)
+endif()
+
 # Pull in PICO SDK (must be before project)
 include(pico_sdk_import.cmake)
 
